@@ -27,6 +27,20 @@ function normalizeMarketInput(value) {
   return normalized;
 }
 
+function parseMarketsInput(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    return value
+      .split(/[,\s]+/g)
+      .map((v) => v.trim())
+      .filter(Boolean);
+  }
+  if (value && typeof value === "object") {
+    return Object.values(value);
+  }
+  return [];
+}
+
 function normalizeTime(value) {
   if (typeof value !== "string") return DEFAULT_SETTINGS.dailyTime;
   const m = value.match(/^(\d{2}):(\d{2})$/);
@@ -42,7 +56,7 @@ function normalizeTime(value) {
 function uniqueMarkets(values) {
   const out = [];
   const seen = new Set();
-  for (const v of Array.isArray(values) ? values : []) {
+  for (const v of parseMarketsInput(values)) {
     const m = normalizeMarketInput(v);
     if (!m) continue;
     if (seen.has(m)) continue;
@@ -162,7 +176,7 @@ async function notifyUpdate(tickersByMarket) {
 
   await chrome.notifications.create({
     type: "basic",
-    iconUrl: "https://max.maicoin.com/favicon.ico",
+    iconUrl: "icon.svg",
     title: "MAX 報價更新",
     message
   });

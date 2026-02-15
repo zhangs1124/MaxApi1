@@ -36,6 +36,13 @@ body {
     font-weight: 700;
 }
 
+.version {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    margin-left: 6px;
+}
+
 .card {
     background: var(--card);
     border: 1px solid var(--border);

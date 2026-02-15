@@ -2,6 +2,7 @@ const $ = (id) => document.getElementById(id);
 
 const els = {
   primaryMarketLabel: $("primaryMarketLabel"),
+  version: $("version"),
   last: $("last"),
   buy: $("buy"),
   sell: $("sell"),
@@ -70,7 +71,17 @@ function renderPrimaryTicker(market, ticker) {
 }
 
 async function sendMessage(message) {
-  return await chrome.runtime.sendMessage(message);
+  let lastError = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await chrome.runtime.sendMessage(message);
+    } catch (err) {
+      lastError = err;
+      const waitMs = 150 * (2 ** attempt);
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+  }
+  throw lastError || new Error("send_message_failed");
 }
 
 let state = {
@@ -100,13 +111,16 @@ function updateScheduleUI() {
 
 function renderPrimaryMarketSelect(markets, primaryMarket) {
   els.primaryMarket.innerHTML = "";
-  for (const m of markets) {
+  for (const m of Array.isArray(markets) ? markets : []) {
     const option = document.createElement("option");
     option.value = m;
     option.textContent = m.toUpperCase();
     els.primaryMarket.appendChild(option);
   }
   els.primaryMarket.value = primaryMarket;
+  if (!els.primaryMarket.value && Array.isArray(markets) && markets.length > 0) {
+    els.primaryMarket.value = markets[0];
+  }
 }
 
 function marketRow({ market, ticker, removable }) {
@@ -177,6 +191,9 @@ function renderAll() {
   if (!state.settings) return;
   const s = state.settings;
   renderPrimaryMarketSelect(s.markets, s.primaryMarket);
+  if (els.primaryMarket.value && s.primaryMarket !== els.primaryMarket.value) {
+    s.primaryMarket = els.primaryMarket.value;
+  }
   els.scheduleMode.value = s.scheduleMode;
   els.intervalMinutes.value = s.intervalMinutes;
   els.dailyTime.value = s.dailyTime;
@@ -191,7 +208,13 @@ function renderAll() {
 
 async function load() {
   setStatus("讀取中");
-  const res = await sendMessage({ type: "getStatus" });
+  let res = null;
+  try {
+    res = await sendMessage({ type: "getStatus" });
+  } catch (err) {
+    setStatus("讀取失敗 可按保存或更新");
+    return;
+  }
   if (!res?.ok) {
     setStatus(res?.error || "讀取失敗");
     return;
@@ -201,6 +224,16 @@ async function load() {
   state.tickersByMarket = res.tickersByMarket || {};
   renderAll();
   setStatus("");
+
+  const markets = Array.isArray(state.settings?.markets) ? state.settings.markets : [];
+  const tickers = state.tickersByMarket || {};
+  const needsRefresh = markets.length > 0 && markets.some((m) => {
+    const t = tickers[m];
+    return !t || !Number.isFinite(Number(t.last));
+  });
+  if (needsRefresh) {
+    refreshNow().catch(() => {});
+  }
 }
 
 async function refreshNow() {
@@ -292,6 +325,11 @@ async function startTest() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  if (els.version) {
+    const v = chrome.runtime.getManifest?.().version;
+    els.version.textContent = v ? `v${v}` : "";
+  }
+
   els.refresh.addEventListener("click", refreshNow);
   els.save.addEventListener("click", saveSettings);
   els.addMarket.addEventListener("click", addMarket);
@@ -323,4 +361,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   load().catch((err) => setStatus(err?.message || "讀取失敗"));
+  setTimeout(() => {
+    if (!state.settings) {
+      load().catch(() => {});
+    }
+  }, 400);
 });
