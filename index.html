@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAX 報價</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="popup">
+        <header class="popup-header">
+            <div class="popup-title">MAX 報價</div>
+            <button id="refresh" class="btn btn-primary" type="button">更新</button>
+        </header>
+
+        <section class="card">
+            <div class="price-row">
+                <div class="price-main">
+                    <div class="label" id="primaryMarketLabel">最新</div>
+                    <div id="last" class="value">-</div>
+                </div>
+                <div class="price-side">
+                    <div class="kv">
+                        <div class="label">買</div>
+                        <div id="buy" class="value-sm">-</div>
+                    </div>
+                    <div class="kv">
+                        <div class="label">賣</div>
+                        <div id="sell" class="value-sm">-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="meta">
+                <div id="updatedAt">-</div>
+                <div id="unit" class="meta-right">-</div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="form-row">
+                <label class="form-label" for="primaryMarket">主交易對</label>
+                <select id="primaryMarket" class="input"></select>
+            </div>
+            <div class="form-row">
+                <label class="form-label" for="scheduleMode">排程</label>
+                <select id="scheduleMode" class="input">
+                    <option value="interval">固定間隔</option>
+                    <option value="daily">每日時間</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label class="form-label" for="intervalMinutes">間隔 分鐘</label>
+                <input id="intervalMinutes" class="input" type="number" min="1" max="1440" step="1">
+            </div>
+            <div class="form-row">
+                <label class="form-label" for="dailyTime">每日時間</label>
+                <input id="dailyTime" class="input" type="time">
+            </div>
+            <div class="form-row">
+                <label class="form-label" for="badgeMode">徽章</label>
+                <select id="badgeMode" class="input">
+                    <option value="last">最新</option>
+                    <option value="buy">買</option>
+                    <option value="sell">賣</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label class="form-label" for="notifyOnAlarm">通知</label>
+                <label class="toggle">
+                    <input id="notifyOnAlarm" type="checkbox">
+                    <span class="toggle-ui"></span>
+                </label>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="form-row">
+                <label class="form-label" for="newMarket">新增交易對</label>
+                <input id="newMarket" class="input" type="text" placeholder="BTCUSDT 或 BTC USDT">
+            </div>
+            <div class="actions">
+                <button id="addMarket" class="btn" type="button">加入</button>
+                <button id="save" class="btn btn-primary" type="button">保存</button>
+            </div>
+            <div id="markets" class="market-list"></div>
+
+            <div class="divider"></div>
+
+            <div class="form-row">
+                <label class="form-label" for="testSeconds">測試 秒數</label>
+                <input id="testSeconds" class="input" type="number" min="1" max="60" step="1" value="5">
+            </div>
+            <div class="actions">
+                <button id="testStart" class="btn" type="button">開始測試</button>
+                <button id="testStop" class="btn" type="button">停止測試</button>
+            </div>
+            <div id="testStatus" class="status" aria-live="polite"></div>
+
+            <div class="actions">
+                <a id="openTrade" class="btn btn-link" href="#" role="button">開啟交易頁</a>
+            </div>
+            <div id="status" class="status" aria-live="polite"></div>
+        </section>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

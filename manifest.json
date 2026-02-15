@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "MAX USDT TWD 定時報價",
+  "version": "0.1.0",
+  "description": "定時取得 MAX USDT TWD 報價並顯示於工具列徽章與彈出視窗",
+  "permissions": ["alarms", "storage", "notifications", "tabs"],
+  "host_permissions": ["https://max-api.maicoin.com/*"],
+  "action": {
+    "default_title": "MAX USDT TWD",
+    "default_popup": "index.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
