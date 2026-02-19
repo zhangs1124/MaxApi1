@@ -353,7 +353,7 @@ document.addEventListener("DOMContentLoaded", () => {
     openTradePage();
   });
 
-  chrome.storage.onChanged.addEventListener((changes, areaName) => {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== "local") return;
     if (!changes.tickersByMarket) return;
     state.tickersByMarket = changes.tickersByMarket.newValue || {};
