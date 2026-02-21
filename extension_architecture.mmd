@@ -1,0 +1,54 @@
+sequenceDiagram
+    participant User as 使用者 (User)
+    participant Popup as 彈出視窗 (Popup JS)
+    participant Background as 背景服務 (Background JS)
+    participant Storage as 瀏覽器儲存 (Chrome Storage)
+    participant API as MAX 交易所 API
+
+    %% ========== 系統初始化與背景輪詢 ==========
+    rect rgb(200, 220, 240)
+    Note over Background, API: 背景持續運作流程 (排程更新)
+    Background->>Background: 載入時註冊 Chrome Alarms
+    Loop 每隔 N 分鐘或每日定時
+        Background->>API: 呼叫 Fetch 取各交易對 Ticker
+        API-->>Background: 回傳最新報價 JSON
+        Background->>Storage: 將報價寫入 [local.tickersByMarket]
+        Background->>Background: 更新 Browser Action Badge (顯示主交易對價格)
+        opt 如果設定開啟通知 & 為 Alarm 觸發
+            Background->>User: 彈出 Windows/Mac 系統通知
+        end
+    end
+    end
+
+    %% ========== 使用者打開選單與互動 ==========
+    rect rgb(220, 240, 200)
+    Note over User, Storage: 介面互動與資料讀取
+    User->>Popup: 點擊擴充功能圖示開啟視窗
+    Popup->>Background: 發送訊息 "getStatus" 請求目前狀態
+    Background->>Storage: 讀取 [sync.settings] 與 [local.tickersByMarket]
+    Storage-->>Background: 回傳設定與最新報價
+    Background-->>Popup: 回覆 Settings 與 Tickers
+    Popup->>Popup: 渲染畫面 (價格卡片、設定表單)
+    
+    %% 即時更新按鈕
+    User->>Popup: 點擊「更新」按鈕 (Refresh)
+    Popup->>Background: 發送訊息 "refreshNow"
+    Background->>API: 立即呼叫 API 抓資料
+    API-->>Background: 回傳報價
+    Background->>Storage: 更新資料庫與 Badge
+    Background-->>Popup: 回覆最新 Tickers
+    Popup->>Popup: 重新渲染畫面價格
+    end
+
+    %% ========== 使用者變更設定 ==========
+    rect rgb(240, 220, 220)
+    Note over User, Background: 變更設定與儲存
+    User->>Popup: 修改表單，點擊「保存」按鈕
+    Popup->>Background: 發送訊息 "setSettings" 傳遞新設定
+    Background->>Storage: 寫入新設定至 [sync]
+    Storage-->>Background: 觸發 onChanged 事件
+    Background->>Background: 根據新設定重新註冊 Alarms (計時器)
+    Background->>Background: 根據新的主交易對更新 Badge
+    Background-->>Popup: 回覆保存成功
+    Popup->>Popup: 重新載入畫面 (load)
+    end
