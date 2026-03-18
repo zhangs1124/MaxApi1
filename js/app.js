@@ -406,4 +406,14 @@ document.addEventListener("DOMContentLoaded", () => {
     await load();
     setStatus("已新增");
     setTimeout(() => setStatus(""), 900);
-  })
+  });
+
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message && message.type === "alertsUpdated") {
+      load().catch(() => { });
+    }
+  });
+
+  load().catch(() => { });
+});
+
