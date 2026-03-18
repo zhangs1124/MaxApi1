@@ -271,14 +271,15 @@ async function pollOnce({ reason }) {
   if (hasAlertTriggered) {
     await chrome.storage.sync.set({ alerts: currentAlerts });
     try {
-      await chrome.notifications.create({
+      const nid = "alert-" + Date.now();
+      await chrome.notifications.create(nid, {
         type: "basic",
         iconUrl: "icon128.png",
         title: "⚠️ 價格觸發示警",
         message: alertMessages.join("\n"),
         priority: 2
       });
-    } catch { }
+    } catch (err) { console.error(err); }
     chrome.runtime.sendMessage({ type: "alertsUpdated" }).catch(() => { });
   }
 
