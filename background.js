@@ -280,7 +280,10 @@ async function pollOnce({ reason }) {
         priority: 2
       });
     } catch (err) { console.error(err); }
-    chrome.runtime.sendMessage({ type: "alertsUpdated" }).catch(() => { });
+    chrome.runtime.sendMessage({
+      type: "alertsUpdated",
+      alertText: alertMessages.join("\n")
+    }).catch(() => { });
   }
 
   if (reason === "alarm" && !hasAlertTriggered) {

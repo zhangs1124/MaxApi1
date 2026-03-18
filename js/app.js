@@ -410,6 +410,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   chrome.runtime.onMessage.addListener((message) => {
     if (message && message.type === "alertsUpdated") {
+      if (message.alertText) {
+        alert("⚠️ 價格觸發示警\n\n" + message.alertText);
+      }
       load().catch(() => { });
     }
   });
