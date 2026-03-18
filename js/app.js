@@ -27,6 +27,8 @@ const els = {
   status: $("status")
 };
 
+let manifestVersion = "";
+
 function formatPrice(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "-";
@@ -47,6 +49,7 @@ function setStatus(text) {
 function inferUnitFromMarket(market) {
   if (typeof market !== "string") return "-";
   const m = market.toLowerCase();
+  if (/^\d/.test(m)) return "單位 TWD";
   if (m.endsWith("twd")) return "單位 TWD";
   if (m.endsWith("usdt")) return "單位 USDT";
   return "-";
@@ -86,7 +89,8 @@ async function sendMessage(message) {
 
 let state = {
   settings: null,
-  tickersByMarket: {}
+  tickersByMarket: {},
+  buildId: ""
 };
 
 let testTimerId = null;
@@ -94,6 +98,18 @@ let testInFlight = false;
 
 function setTestStatus(text) {
   els.testStatus.textContent = text || "";
+}
+
+async function removeMarket(market) {
+  setStatus("移除中");
+  const res = await sendMessage({ type: "removeMarket", market });
+  if (!res?.ok) {
+    setStatus(res?.error || "移除失敗");
+    return;
+  }
+  await load();
+  setStatus("已移除");
+  setTimeout(() => setStatus(""), 900);
 }
 
 function updateScheduleUI() {
@@ -127,9 +143,16 @@ function marketRow({ market, ticker, removable }) {
   const row = document.createElement("div");
   row.className = "market-row";
 
-  const c1 = document.createElement("div");
-  c1.className = "market-cell";
-  c1.textContent = market.toUpperCase();
+  const dict = { "0050": "元大台灣50", "0056": "元大高股息", "2330": "台積電", "usdttwd": "USDT/TWD", "btcusdt": "BTC/USDT" };
+  const name = dict[String(market).toLowerCase()];
+  c1.textContent = name ? `${market.toUpperCase()} ${name}` : market.toUpperCase();
+
+  c1.href = /^\d{4,6}$/.test(String(market).toLowerCase())
+    ? `https://tw.stock.yahoo.com/quote/${market}.TW`
+    : `https://max.maicoin.com/trades/${market.toLowerCase()}`;
+  c1.target = "_blank";
+  c1.style.textDecoration = "none";
+  c1.style.color = "var(--primary)";
 
   const c2 = document.createElement("div");
   c2.className = "market-cell";
@@ -143,12 +166,14 @@ function marketRow({ market, ticker, removable }) {
   c4.className = "market-cell";
   c4.textContent = ticker ? formatPrice(ticker.sell) : "-";
 
-  const c5 = document.createElement("button");
-  c5.className = "market-remove";
-  c5.type = "button";
-  c5.textContent = "移除";
-  c5.disabled = !removable;
-  c5.addEventListener("click", async () => {
+  const c5 = document.createElement("div");
+  c5.className = "market-cell market-actions";
+  const removeButton = document.createElement("button");
+  removeButton.className = "btn btn-sm btn-danger";
+  removeButton.type = "button";
+  removeButton.textContent = "移除";
+  removeButton.disabled = !removable;
+  removeButton.addEventListener("click", async () => {
     setStatus("移除中");
     const res = await sendMessage({ type: "removeMarket", market });
     if (!res?.ok) {
@@ -158,6 +183,7 @@ function marketRow({ market, ticker, removable }) {
     await load();
     setStatus("");
   });
+  c5.appendChild(removeButton);
 
   row.appendChild(c1);
   row.appendChild(c2);
@@ -177,7 +203,7 @@ function renderMarkets(settings, tickersByMarket) {
     <div class="market-cell">最新</div>
     <div class="market-cell">買</div>
     <div class="market-cell">賣</div>
-    <div class="market-cell"></div>
+    <div class="market-cell">操作</div>
   `;
   els.markets.appendChild(head);
 
@@ -191,9 +217,6 @@ function renderAll() {
   if (!state.settings) return;
   const s = state.settings;
   renderPrimaryMarketSelect(s.markets, s.primaryMarket);
-  if (els.primaryMarket.value && s.primaryMarket !== els.primaryMarket.value) {
-    s.primaryMarket = els.primaryMarket.value;
-  }
   els.scheduleMode.value = s.scheduleMode;
   els.intervalMinutes.value = s.intervalMinutes;
   els.dailyTime.value = s.dailyTime;
@@ -204,6 +227,11 @@ function renderAll() {
   renderPrimaryTicker(s.primaryMarket, primaryTicker);
   renderMarkets(s, state.tickersByMarket || {});
   updateScheduleUI();
+
+  if (els.version && manifestVersion) {
+    const suffix = state.buildId ? `-${state.buildId}` : "";
+    els.version.textContent = `${manifestVersion}${suffix}`;
+  }
 }
 
 async function load() {
@@ -212,7 +240,7 @@ async function load() {
   try {
     res = await sendMessage({ type: "getStatus" });
   } catch (err) {
-    setStatus("讀取失敗 可按保存或更新");
+    setStatus("讀取失敗");
     return;
   }
   if (!res?.ok) {
@@ -222,18 +250,9 @@ async function load() {
 
   state.settings = res.settings;
   state.tickersByMarket = res.tickersByMarket || {};
+  state.buildId = res.buildId || "";
   renderAll();
   setStatus("");
-
-  const markets = Array.isArray(state.settings?.markets) ? state.settings.markets : [];
-  const tickers = state.tickersByMarket || {};
-  const needsRefresh = markets.length > 0 && markets.some((m) => {
-    const t = tickers[m];
-    return !t || !Number.isFinite(Number(t.last));
-  });
-  if (needsRefresh) {
-    refreshNow().catch(() => {});
-  }
 }
 
 async function refreshNow() {
@@ -256,13 +275,14 @@ async function saveSettings() {
   const badgeMode = els.badgeMode.value;
   const notifyOnAlarm = Boolean(els.notifyOnAlarm.checked);
   const primaryMarket = els.primaryMarket.value;
+  const markets = state.settings.markets;
 
   const res = await sendMessage({
     type: "setSettings",
     scheduleMode,
     intervalMinutes,
     dailyTime,
-    markets: state.settings?.markets || [],
+    markets,
     primaryMarket,
     badgeMode,
     notifyOnAlarm
@@ -276,94 +296,28 @@ async function saveSettings() {
   setTimeout(() => setStatus(""), 900);
 }
 
-function openTradePage() {
-  const market = els.primaryMarket.value || "usdttwd";
-  chrome.tabs.create({ url: `https://max.maicoin.com/trades/${market}` });
-}
-
-async function addMarket() {
-  const value = String(els.newMarket.value || "").trim();
-  if (!value) return;
-  setStatus("加入中");
-  const res = await sendMessage({ type: "addMarket", market: value });
-  if (!res?.ok) {
-    setStatus(res?.error || "加入失敗");
-    return;
-  }
-  els.newMarket.value = "";
-  await load();
-  setStatus("");
-}
-
-async function testTickOnce() {
-  if (testInFlight) return;
-  testInFlight = true;
-  try {
-    await refreshNow();
-  } finally {
-    testInFlight = false;
-  }
-}
-
-function stopTest() {
-  if (testTimerId) {
-    clearInterval(testTimerId);
-    testTimerId = null;
-  }
-  setTestStatus("");
-}
-
-async function startTest() {
-  stopTest();
-  const seconds = Number(els.testSeconds.value);
-  const period = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 5;
-  setTestStatus(`測試中 每 ${period} 秒更新`);
-  await testTickOnce();
-  testTimerId = setInterval(() => {
-    testTickOnce();
-  }, period * 1000);
-}
-
 document.addEventListener("DOMContentLoaded", () => {
   if (els.version) {
     const v = chrome.runtime.getManifest?.().version;
-    els.version.textContent = v ? `v${v}` : "";
+    manifestVersion = v ? `v${v}` : "";
+    els.version.textContent = manifestVersion;
   }
 
   els.refresh.addEventListener("click", refreshNow);
   els.save.addEventListener("click", saveSettings);
-  els.addMarket.addEventListener("click", addMarket);
-  els.testStart.addEventListener("click", () => startTest().catch((err) => setTestStatus(err?.message || "測試失敗")));
-  els.testStop.addEventListener("click", stopTest);
-  els.newMarket.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    addMarket();
-  });
   els.primaryMarket.addEventListener("change", () => {
     if (!state.settings) return;
     state.settings.primaryMarket = els.primaryMarket.value;
     renderAll();
   });
-  els.scheduleMode.addEventListener("change", () => {
-    updateScheduleUI();
-  });
-  els.openTrade.addEventListener("click", (e) => {
-    e.preventDefault();
-    openTradePage();
-  });
+  els.scheduleMode.addEventListener("change", updateScheduleUI);
 
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== "local") return;
-    if (!changes.tickersByMarket) return;
-    state.tickersByMarket = changes.tickersByMarket.newValue || {};
-    renderAll();
-  });
+  els.addMarket.addEventListener("click", async () => {
+    if (!state.settings) return;
+    const newMarketValue = String(els.newMarket.value || "").trim();
+    if (!newMarketValue) return;
 
-  load().catch((err) => setStatus(err?.message || "讀取失敗"));
-  setTimeout(() => {
-    if (!state.settings) {
-      load().catch(() => {});
-    }
-  }, 400);
-});
+    setStatus("新增中");
+    const res = await sendMessage({ type: "addMarket", market: newMarketValue });
+    if (!res?.ok) {
+      setStatus(res?.error || "新增失敗"

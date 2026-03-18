@@ -1,16 +1,19 @@
 const API_BASE = "https://max-api.maicoin.com/api/v2/tickers";
+const BUILD_ID = Date.now().toString(36);
 
 const DEFAULT_SETTINGS = {
   scheduleMode: "interval",
   intervalMinutes: 5,
   dailyTime: "09:00",
-  markets: ["usdttwd", "btcusdt"],
+  markets: ["usdttwd", "btcusdt", "2330", "0050", "0056"],
   primaryMarket: "usdttwd",
   badgeMode: "last",
   notifyOnAlarm: true
 };
 
 const ALARM_NAME = "max-ticker-fetch";
+const YAHOO_BASE = "https://query1.finance.yahoo.com/v8/finance/chart";
+const STOCK_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 function clampIntervalMinutes(value) {
   const parsed = Number(value);
@@ -22,7 +25,10 @@ function clampIntervalMinutes(value) {
 
 function normalizeMarketInput(value) {
   if (typeof value !== "string") return null;
-  const normalized = value.toLowerCase().replaceAll(" ", "").replaceAll("/", "").replaceAll("_", "").replaceAll("-", "");
+  const trimmed = value.trim().toLowerCase();
+  const stockMatch = trimmed.match(/^(\d{4,6})(?:\.tw)?$/);
+  if (stockMatch) return stockMatch[1];
+  const normalized = trimmed.replace(/[^a-z0-9]/g, "");
   if (!/^[a-z0-9]{3,20}$/.test(normalized)) return null;
   return normalized;
 }
@@ -111,6 +117,10 @@ async function ensureAlarm() {
 }
 
 async function fetchTicker(market) {
+  if (/^\d{4,6}$/.test(market)) {
+    return await fetchStockTicker(market);
+  }
+
   const response = await fetch(`${API_BASE}/${market}`, {
     method: "GET",
     headers: { "Accept": "application/json" },
@@ -140,6 +150,42 @@ async function fetchTicker(market) {
   };
 }
 
+async function fetchStockTicker(symbol) {
+  const url = `${YAHOO_BASE}/${symbol}.TW?interval=1m&range=1d`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: { "User-Agent": STOCK_UA },
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Stock HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  const result = data?.chart?.result?.[0];
+  if (!result) {
+    throw new Error("Missing stock data");
+  }
+
+  const meta = result.meta;
+  const last = meta.regularMarketPrice;
+  const buy = (result.indicators.quote[0].close || []).slice(-1)[0] || last; // Fallback to last
+  const sell = last;
+
+  if (!Number.isFinite(last)) {
+    throw new Error("Invalid stock price");
+  }
+
+  return {
+    market: symbol,
+    atMs: Date.now(),
+    buy: last, // Simplified for stocks as bid/ask is N/A in basic chart API
+    sell: last,
+    last
+  };
+}
+
 function formatBadgePrice(value) {
   if (!Number.isFinite(value)) return "";
   return value.toFixed(2);
@@ -150,8 +196,8 @@ async function updateBadge(tickersByMarket) {
   const ticker = tickersByMarket?.[settings.primaryMarket] || null;
   const price =
     settings.badgeMode === "buy" ? ticker?.buy :
-    settings.badgeMode === "sell" ? ticker?.sell :
-    ticker?.last;
+      settings.badgeMode === "sell" ? ticker?.sell :
+        ticker?.last;
 
   const text = formatBadgePrice(price);
   await chrome.action.setBadgeText({ text });
@@ -174,12 +220,15 @@ async function notifyUpdate(tickersByMarket) {
   }
   const message = parts.length > 0 ? parts.join("\n") : "更新完成";
 
-  await chrome.notifications.create({
-    type: "basic",
-    iconUrl: "icon.svg",
-    title: "MAX 報價更新",
-    message
-  });
+  try {
+    await chrome.notifications.create({
+      type: "basic",
+      iconUrl: "icon128.png",
+      title: "報價更新",
+      message
+    });
+  } catch {
+  }
 }
 
 async function pollOnce({ reason }) {
@@ -207,14 +256,19 @@ async function pollOnce({ reason }) {
 chrome.runtime.onInstalled.addListener(async () => {
   const existing = await chrome.storage.sync.get(null);
   const toSet = {};
+
+  // Force migration for markets to include new defaults
+  const currentMarkets = existing.markets ? (Array.isArray(existing.markets) ? existing.markets : [existing.markets]) : [];
+  const mergedMarkets = [...new Set([...currentMarkets, ...DEFAULT_SETTINGS.markets])];
+  toSet.markets = mergedMarkets;
+
   for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
-    if (existing[key] === undefined) {
+    if (existing[key] === undefined && key !== 'markets') {
       toSet[key] = value;
     }
   }
-  if (Object.keys(toSet).length > 0) {
-    await chrome.storage.sync.set(toSet);
-  }
+
+  await chrome.storage.sync.set(toSet);
   await ensureAlarm();
   await pollOnce({ reason: "install" });
 });
@@ -256,7 +310,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === "getStatus") {
       const settings = await getSettings();
       const stored = await chrome.storage.local.get(["tickersByMarket"]);
-      sendResponse({ ok: true, settings, tickersByMarket: stored.tickersByMarket || {} });
+      sendResponse({ ok: true, settings, tickersByMarket: stored.tickersByMarket || {}, buildId: BUILD_ID });
       return;
     }
 
@@ -283,32 +337,45 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return;
     }
 
+    if (message.type === "refreshNow") {
+      const tickersByMarket = await pollOnce({ reason: "manual" });
+      sendResponse({ ok: true, tickersByMarket });
+      return;
+    }
+
     if (message.type === "addMarket") {
       const settings = await getSettings();
-      const m = normalizeMarketInput(message.market);
-      if (!m) {
-        sendResponse({ ok: false, error: "market_invalid" });
+      const newMarket = normalizeMarketInput(message.market);
+      if (!newMarket) {
+        sendResponse({ ok: false, error: "invalid_market_format" });
         return;
       }
-      const markets = uniqueMarkets([...settings.markets, m]);
-      await chrome.storage.sync.set({ markets });
-      sendResponse({ ok: true, markets });
+      const updatedMarkets = uniqueMarkets([...settings.markets, newMarket]);
+      await chrome.storage.sync.set({ markets: updatedMarkets });
+      await pollOnce({ reason: "manual" });
+      sendResponse({ ok: true, markets: updatedMarkets });
       return;
     }
 
     if (message.type === "removeMarket") {
       const settings = await getSettings();
-      const m = normalizeMarketInput(message.market);
-      const markets = uniqueMarkets(settings.markets.filter((x) => x !== m));
-      const primaryMarket = markets.includes(settings.primaryMarket) ? settings.primaryMarket : markets[0];
-      await chrome.storage.sync.set({ markets, primaryMarket });
-      sendResponse({ ok: true, markets, primaryMarket });
-      return;
-    }
-
-    if (message.type === "refreshNow") {
-      const tickersByMarket = await pollOnce({ reason: "manual" });
-      sendResponse({ ok: true, tickersByMarket });
+      const targetMarket = normalizeMarketInput(message.market);
+      if (!targetMarket) {
+        sendResponse({ ok: false, error: "invalid_market_format" });
+        return;
+      }
+      if (!settings.markets.includes(targetMarket)) {
+        sendResponse({ ok: true, markets: settings.markets, primaryMarket: settings.primaryMarket });
+        return;
+      }
+      if (settings.markets.length <= 1) {
+        sendResponse({ ok: false, error: "cannot_remove_last_market" });
+        return;
+      }
+      const updatedMarkets = settings.markets.filter((m) => m !== targetMarket);
+      const updatedPrimary = updatedMarkets.includes(settings.primaryMarket) ? settings.primaryMarket : updatedMarkets[0];
+      await chrome.storage.sync.set({ markets: updatedMarkets, primaryMarket: updatedPrimary });
+      sendResponse({ ok: true, markets: updatedMarkets, primaryMarket: updatedPrimary });
       return;
     }
 
@@ -319,3 +386,4 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return true;
 });
+

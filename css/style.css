@@ -20,7 +20,7 @@ body {
 }
 
 .popup {
-    width: 360px;
+    width: 460px;
     padding: 12px;
 }
 
@@ -218,11 +218,11 @@ body {
     transition: transform 120ms ease;
 }
 
-.toggle input:checked + .toggle-ui {
+.toggle input:checked+.toggle-ui {
     background: var(--primary);
 }
 
-.toggle input:checked + .toggle-ui::after {
+.toggle input:checked+.toggle-ui::after {
     transform: translateX(20px);
 }
 
@@ -235,7 +235,7 @@ body {
 
 .market-row {
     display: grid;
-    grid-template-columns: 1fr 72px 72px 72px 56px;
+    grid-template-columns: 130px 1fr 1fr 1fr 56px;
     gap: 6px;
     padding: 8px 10px;
     border-top: 1px solid var(--border);
@@ -257,6 +257,27 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.market-name {
+    font-weight: 700;
+    color: var(--text);
+}
+
+.market-actions {
+    text-align: right;
+}
+
+.btn-sm {
+    height: 28px;
+    padding: 0 8px;
+    font-size: 11px;
+}
+
+.btn-danger {
+    border-color: #ef4444;
+    background: #ef4444;
+    color: #fff;
 }
 
 .market-remove {
