@@ -8,7 +8,8 @@ const DEFAULT_SETTINGS = {
   markets: ["usdttwd", "btcusdt", "2330", "0050", "0056"],
   primaryMarket: "usdttwd",
   badgeMode: "last",
-  notifyOnAlarm: true
+  notifyOnAlarm: true,
+  alerts: {}
 };
 
 const ALARM_NAME = "max-ticker-fetch";
@@ -88,7 +89,8 @@ async function getSettings() {
     markets,
     primaryMarket: markets.includes(primaryMarket) ? primaryMarket : markets[0],
     badgeMode,
-    notifyOnAlarm
+    notifyOnAlarm,
+    alerts: stored.alerts || {}
   };
 }
 
@@ -246,7 +248,41 @@ async function pollOnce({ reason }) {
   await saveTickers(tickersByMarket);
   await updateBadge(tickersByMarket);
 
-  if (reason === "alarm") {
+  let hasAlertTriggered = false;
+  const currentAlerts = settings.alerts || {};
+  let alertMessages = [];
+
+  for (const market of Object.keys(tickersByMarket)) {
+    const t = tickersByMarket[market];
+    const item = currentAlerts[market];
+    if (item && item.active && t.last !== null) {
+      if (item.high !== null && t.last >= item.high) {
+        alertMessages.push(`${market.toUpperCase()} 大於或等於高標 (${t.last} >= ${item.high})`);
+        item.active = false;
+        hasAlertTriggered = true;
+      } else if (item.low !== null && t.last <= item.low) {
+        alertMessages.push(`${market.toUpperCase()} 小於或等於低標 (${t.last} <= ${item.low})`);
+        item.active = false;
+        hasAlertTriggered = true;
+      }
+    }
+  }
+
+  if (hasAlertTriggered) {
+    await chrome.storage.sync.set({ alerts: currentAlerts });
+    try {
+      await chrome.notifications.create({
+        type: "basic",
+        iconUrl: "icon128.png",
+        title: "⚠️ 價格觸發示警",
+        message: alertMessages.join("\n"),
+        priority: 2
+      });
+    } catch { }
+    chrome.runtime.sendMessage({ type: "alertsUpdated" }).catch(() => { });
+  }
+
+  if (reason === "alarm" && !hasAlertTriggered) {
     await notifyUpdate(tickersByMarket);
   }
 
@@ -333,6 +369,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         notifyOnAlarm: nextNotifyOnAlarm
       });
 
+      sendResponse({ ok: true });
+      return;
+    }
+
+    if (message.type === "setAlertItem") {
+      const settings = await getSettings();
+      const currentAlerts = settings.alerts || {};
+      currentAlerts[message.market] = {
+        active: message.active,
+        high: message.high,
+        low: message.low
+      };
+      await chrome.storage.sync.set({ alerts: currentAlerts });
       sendResponse({ ok: true });
       return;
     }

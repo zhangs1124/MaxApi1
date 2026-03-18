@@ -141,7 +141,7 @@ function renderPrimaryMarketSelect(markets, primaryMarket) {
   }
 }
 
-function marketRow({ market, ticker, removable }) {
+function marketRow({ market, ticker, removable, alertInfo }) {
   const row = document.createElement("div");
   row.className = "market-row";
 
@@ -170,6 +170,57 @@ function marketRow({ market, ticker, removable }) {
   c4.className = "market-cell";
   c4.textContent = ticker ? formatPrice(ticker.sell) : "-";
 
+  const aHigh = alertInfo?.high || "";
+  const aLow = alertInfo?.low || "";
+  const aActive = !!alertInfo?.active;
+
+  const cHigh = document.createElement("div");
+  cHigh.className = "market-cell";
+  const inpHigh = document.createElement("input");
+  inpHigh.type = "number";
+  inpHigh.className = "alert-input";
+  inpHigh.placeholder = "上限";
+  inpHigh.value = aHigh;
+  cHigh.appendChild(inpHigh);
+
+  const cLow = document.createElement("div");
+  cLow.className = "market-cell";
+  const inpLow = document.createElement("input");
+  inpLow.type = "number";
+  inpLow.className = "alert-input";
+  inpLow.placeholder = "下限";
+  inpLow.value = aLow;
+  cLow.appendChild(inpLow);
+
+  const cActive = document.createElement("div");
+  cActive.className = "market-cell";
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.className = "market-checkbox";
+  cb.checked = aActive;
+  cActive.appendChild(cb);
+
+  const saveAlert = async () => {
+    const hVal = inpHigh.value ? Number(inpHigh.value) : null;
+    const lVal = inpLow.value ? Number(inpLow.value) : null;
+    const isAct = cb.checked;
+
+    if (!state.settings) return;
+    if (!state.settings.alerts) state.settings.alerts = {};
+    state.settings.alerts[market] = { active: isAct, high: hVal, low: lVal };
+
+    await sendMessage({
+      type: "setAlertItem",
+      market,
+      active: isAct,
+      high: hVal,
+      low: lVal
+    });
+  };
+  inpHigh.addEventListener("change", saveAlert);
+  inpLow.addEventListener("change", saveAlert);
+  cb.addEventListener("change", saveAlert);
+
   const c5 = document.createElement("div");
   c5.className = "market-cell market-actions";
   const removeButton = document.createElement("button");
@@ -193,6 +244,9 @@ function marketRow({ market, ticker, removable }) {
   row.appendChild(c2);
   row.appendChild(c3);
   row.appendChild(c4);
+  row.appendChild(cHigh);
+  row.appendChild(cLow);
+  row.appendChild(cActive);
   row.appendChild(c5);
   return row;
 }
@@ -207,13 +261,22 @@ function renderMarkets(settings, tickersByMarket) {
     <div class="market-cell">最新</div>
     <div class="market-cell">買</div>
     <div class="market-cell">賣</div>
+    <div class="market-cell">上限</div>
+    <div class="market-cell">下限</div>
+    <div class="market-cell" style="text-align: center;">啟用</div>
     <div class="market-cell">操作</div>
   `;
   els.markets.appendChild(head);
 
   const removable = settings.markets.length > 1;
+  const alerts = settings.alerts || {};
   for (const market of settings.markets) {
-    els.markets.appendChild(marketRow({ market, ticker: tickersByMarket[market] || null, removable }));
+    els.markets.appendChild(marketRow({
+      market,
+      ticker: tickersByMarket[market] || null,
+      removable,
+      alertInfo: alerts[market]
+    }));
   }
 }
 
@@ -278,8 +341,7 @@ async function refreshNow() {
     setStatus(res?.error || "更新失敗");
     return;
   }
-  state.tickersByMarket = res.tickersByMarket || {};
-  renderAll();
+  await load();
   setStatus("");
 }
 
@@ -344,8 +406,4 @@ document.addEventListener("DOMContentLoaded", () => {
     await load();
     setStatus("已新增");
     setTimeout(() => setStatus(""), 900);
-  });
-
-  load().catch(() => { });
-});
-
+  })
