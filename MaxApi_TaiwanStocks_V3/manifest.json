@@ -1,8 +1,8 @@
-{
+﻿{
   "manifest_version": 3,
-  "name": "MAX USDT TWD 定時報價",
-  "version": "0.1.5",
-  "description": "定時取得 MAX 與台股 (0050, 0056, 2330) 報價",
+  "name": "MAX Ticker & Taiwan Stocks",
+  "version": "0.1.2",
+  "description": "Real-time quotes for MAX markets and Taiwan Stocks (0050, 0056, 2330).",
   "permissions": [
     "alarms",
     "storage",
@@ -20,7 +20,7 @@
     "128": "icon.svg"
   },
   "action": {
-    "default_title": "MAX & 台股報價",
+    "default_title": "MAX & Stock Quotes",
     "default_icon": {
       "16": "icon.svg",
       "32": "icon.svg",
