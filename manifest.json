@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MAX USDT TWD 定時報價",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "定時取得 MAX 與台股 (0050, 0056, 2330) 報價",
   "permissions": [
     "alarms",
