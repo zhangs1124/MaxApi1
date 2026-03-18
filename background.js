@@ -280,6 +280,22 @@ async function pollOnce({ reason }) {
         priority: 2
       });
     } catch (err) { console.error(err); }
+
+    try {
+      if (chrome.scripting) {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs && tabs.length > 0 && !tabs[0].url.startsWith("chrome://")) {
+          await chrome.scripting.executeScript({
+            target: { tabId: tabs[0].id },
+            func: (msg) => { alert(msg); },
+            args: ["⚠️ 價格觸發示警\n\n" + alertMessages.join("\n")]
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Tab alert injection failed", e);
+    }
+
     chrome.runtime.sendMessage({
       type: "alertsUpdated",
       alertText: alertMessages.join("\n")
