@@ -1,14 +1,7 @@
-const $ = (id) => document.getElementById(id);
+﻿\ufeffconst $ = (id) => document.getElementById(id);
 
 const els = {
-  primaryMarketLabel: $("primaryMarketLabel"),
   version: $("version"),
-  last: $("last"),
-  buy: $("buy"),
-  sell: $("sell"),
-  updatedAt: $("updatedAt"),
-  unit: $("unit"),
-  primaryMarket: $("primaryMarket"),
   scheduleMode: $("scheduleMode"),
   intervalMinutes: $("intervalMinutes"),
   dailyTime: $("dailyTime"),
@@ -17,16 +10,12 @@ const els = {
   newMarket: $("newMarket"),
   addMarket: $("addMarket"),
   markets: $("markets"),
-  testSeconds: $("testSeconds"),
-  testStart: $("testStart"),
-  testStop: $("testStop"),
-  testStatus: $("testStatus"),
   refresh: $("refresh"),
   save: $("save"),
-  openTrade: $("openTrade"),
   status: $("status"),
-  refreshBottom: $("refreshBottom"),
-  lastFetchTime: $("lastFetchTime")
+  lastFetchTime: $("lastFetchTime"),
+  toggleConfig: $("toggleConfig"),
+  configCard: $("configCard")
 };
 
 let manifestVersion = "";
@@ -48,33 +37,6 @@ function setStatus(text) {
   els.status.textContent = text || "";
 }
 
-function inferUnitFromMarket(market) {
-  if (typeof market !== "string") return "-";
-  const m = market.toLowerCase();
-  if (/^\d/.test(m)) return "單位 TWD";
-  if (m.endsWith("twd")) return "單位 TWD";
-  if (m.endsWith("usdt")) return "單位 USDT";
-  return "-";
-}
-
-function renderPrimaryTicker(market, ticker) {
-  els.primaryMarketLabel.textContent = market ? `${market.toUpperCase()} 最新` : "最新";
-  if (!ticker) {
-    els.last.textContent = "-";
-    els.buy.textContent = "-";
-    els.sell.textContent = "-";
-    els.updatedAt.textContent = "-";
-    els.unit.textContent = "-";
-    return;
-  }
-
-  els.last.textContent = formatPrice(ticker.last);
-  els.buy.textContent = formatPrice(ticker.buy);
-  els.sell.textContent = formatPrice(ticker.sell);
-  els.updatedAt.textContent = `更新 ${formatTime(ticker.atMs)}`;
-  els.unit.textContent = inferUnitFromMarket(market);
-}
-
 async function sendMessage(message) {
   let lastError = null;
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -94,13 +56,6 @@ let state = {
   tickersByMarket: {},
   buildId: ""
 };
-
-let testTimerId = null;
-let testInFlight = false;
-
-function setTestStatus(text) {
-  els.testStatus.textContent = text || "";
-}
 
 async function removeMarket(market) {
   setStatus("移除中");
@@ -127,78 +82,121 @@ function updateScheduleUI() {
   }
 }
 
-function renderPrimaryMarketSelect(markets, primaryMarket) {
-  els.primaryMarket.innerHTML = "";
-  for (const m of Array.isArray(markets) ? markets : []) {
-    const option = document.createElement("option");
-    option.value = m;
-    option.textContent = m.toUpperCase();
-    els.primaryMarket.appendChild(option);
-  }
-  els.primaryMarket.value = primaryMarket;
-  if (!els.primaryMarket.value && Array.isArray(markets) && markets.length > 0) {
-    els.primaryMarket.value = markets[0];
-  }
-}
-
 function marketRow({ market, ticker, removable, alertInfo }) {
-  const row = document.createElement("div");
-  row.className = "market-row";
+  const isPrimary = state.settings && state.settings.primaryMarket === market;
 
-  const c1 = document.createElement("a");
-  c1.className = "market-cell market-name";
+  const card = document.createElement("div");
+  card.className = "market-card" + (isPrimary ? " selected-badge" : "");
+
+  // Header
+  const header = document.createElement("div");
+  header.className = "card-header";
+
+  const titleGroup = document.createElement("div");
+  titleGroup.className = "card-title-group";
+
+  const radio = document.createElement("input");
+  radio.type = "radio";
+  radio.name = "primary-badge";
+  radio.className = "badge-radio";
+  radio.value = market;
+  radio.checked = isPrimary;
+  radio.title = "設為 Badge 顯示價格";
+  radio.addEventListener("change", async () => {
+    if (radio.checked) {
+      state.settings.primaryMarket = market;
+      await saveSettings();
+    }
+  });
+
+  const badgeSpan = document.createElement("span");
+  badgeSpan.className = "market-badge";
+  badgeSpan.textContent = market.toUpperCase();
+
+  const nameSpan = document.createElement("span");
+  nameSpan.className = "market-name";
   const dict = { "0050": "元大台灣50", "0056": "元大高股息", "2330": "台積電", "usdttwd": "USDT/TWD", "btcusdt": "BTC/USDT" };
-  const name = dict[String(market).toLowerCase()];
-  c1.textContent = name ? `${market.toUpperCase()} ${name}` : market.toUpperCase();
+  const name = dict[market.toLowerCase()] || "";
+  nameSpan.textContent = name;
 
-  c1.href = /^\d{4,6}$/.test(String(market).toLowerCase())
-    ? `https://tw.stock.yahoo.com/quote/${market}.TW`
-    : `https://max.maicoin.com/trades/${market.toLowerCase()}`;
-  c1.target = "_blank";
-  c1.style.textDecoration = "none";
-  c1.style.color = "var(--primary)";
+  titleGroup.appendChild(radio);
+  titleGroup.appendChild(badgeSpan);
+  if (name) titleGroup.appendChild(nameSpan);
 
-  const c2 = document.createElement("div");
-  c2.className = "market-cell";
-  c2.textContent = ticker ? formatPrice(ticker.last) : "-";
+  const removeBtn = document.createElement("button");
+  removeBtn.className = "btn-remove-card";
+  removeBtn.type = "button";
+  removeBtn.innerHTML = "&times;";
+  removeBtn.title = "移除此項目";
+  removeBtn.disabled = !removable;
+  removeBtn.addEventListener("click", () => removeMarket(market));
 
-  const c3 = document.createElement("div");
-  c3.className = "market-cell";
-  c3.textContent = ticker ? formatPrice(ticker.buy) : "-";
+  header.appendChild(titleGroup);
+  header.appendChild(removeBtn);
 
-  const c4 = document.createElement("div");
-  c4.className = "market-cell";
-  c4.textContent = ticker ? formatPrice(ticker.sell) : "-";
+  // Body
+  const body = document.createElement("div");
+  body.className = "card-body";
 
-  const aHigh = alertInfo?.high || "";
-  const aLow = alertInfo?.low || "";
-  const aActive = !!alertInfo?.active;
+  // Price Info (Left)
+  const priceInfo = document.createElement("div");
+  priceInfo.className = "price-info";
 
-  const cHigh = document.createElement("div");
-  cHigh.className = "market-cell";
+  const mainPrice = document.createElement("div");
+  mainPrice.className = "price-item main-price";
+  mainPrice.innerHTML = `<span class="price-label">最新</span><span class="price-val val-last">${ticker ? formatPrice(ticker.last) : "-"}</span>`;
+
+  const buyPrice = document.createElement("div");
+  buyPrice.className = "price-item";
+  buyPrice.innerHTML = `<span class="price-label">買入</span><span class="price-val val-buy">${ticker ? formatPrice(ticker.buy) : "-"}</span>`;
+
+  const sellPrice = document.createElement("div");
+  sellPrice.className = "price-item";
+  sellPrice.innerHTML = `<span class="price-label">賣出</span><span class="price-val val-sell">${ticker ? formatPrice(ticker.sell) : "-"}</span>`;
+
+  priceInfo.appendChild(mainPrice);
+  priceInfo.appendChild(buyPrice);
+  priceInfo.appendChild(sellPrice);
+
+  // Alert Info (Right)
+  const alertInfoDiv = document.createElement("div");
+  alertInfoDiv.className = "alert-info";
+
+  const alertInputs = document.createElement("div");
+  alertInputs.className = "alert-inputs";
+
+  const highWrapper = document.createElement("div");
+  highWrapper.className = "alert-input-wrapper";
+  highWrapper.innerHTML = `<span class="alert-input-label">高標</span>`;
   const inpHigh = document.createElement("input");
   inpHigh.type = "number";
-  inpHigh.className = "alert-input";
+  inpHigh.className = "card-alert-input";
   inpHigh.placeholder = "上限";
-  inpHigh.value = aHigh;
-  cHigh.appendChild(inpHigh);
+  inpHigh.value = alertInfo?.high || "";
+  highWrapper.appendChild(inpHigh);
 
-  const cLow = document.createElement("div");
-  cLow.className = "market-cell";
+  const lowWrapper = document.createElement("div");
+  lowWrapper.className = "alert-input-wrapper";
+  lowWrapper.innerHTML = `<span class="alert-input-label">低標</span>`;
   const inpLow = document.createElement("input");
   inpLow.type = "number";
-  inpLow.className = "alert-input";
+  inpLow.className = "card-alert-input";
   inpLow.placeholder = "下限";
-  inpLow.value = aLow;
-  cLow.appendChild(inpLow);
+  inpLow.value = alertInfo?.low || "";
+  lowWrapper.appendChild(inpLow);
 
-  const cActive = document.createElement("div");
-  cActive.className = "market-cell";
+  alertInputs.appendChild(highWrapper);
+  alertInputs.appendChild(lowWrapper);
+
+  const toggleLabel = document.createElement("label");
+  toggleLabel.className = "alert-toggle-label";
   const cb = document.createElement("input");
   cb.type = "checkbox";
-  cb.className = "market-checkbox";
-  cb.checked = aActive;
-  cActive.appendChild(cb);
+  cb.checked = !!alertInfo?.active;
+  const cbText = document.createElement("span");
+  cbText.textContent = "啟用示警";
+  toggleLabel.appendChild(cb);
+  toggleLabel.appendChild(cbText);
 
   const saveAlert = async () => {
     const hVal = inpHigh.value ? Number(inpHigh.value) : null;
@@ -217,56 +215,25 @@ function marketRow({ market, ticker, removable, alertInfo }) {
       low: lVal
     });
   };
+
   inpHigh.addEventListener("change", saveAlert);
   inpLow.addEventListener("change", saveAlert);
   cb.addEventListener("change", saveAlert);
 
-  const c5 = document.createElement("div");
-  c5.className = "market-cell market-actions";
-  const removeButton = document.createElement("button");
-  removeButton.className = "btn btn-sm btn-danger";
-  removeButton.type = "button";
-  removeButton.textContent = "移除";
-  removeButton.disabled = !removable;
-  removeButton.addEventListener("click", async () => {
-    setStatus("移除中");
-    const res = await sendMessage({ type: "removeMarket", market });
-    if (!res?.ok) {
-      setStatus(res?.error || "移除失敗");
-      return;
-    }
-    await load();
-    setStatus("");
-  });
-  c5.appendChild(removeButton);
+  alertInfoDiv.appendChild(alertInputs);
+  alertInfoDiv.appendChild(toggleLabel);
 
-  row.appendChild(c1);
-  row.appendChild(c2);
-  row.appendChild(c3);
-  row.appendChild(c4);
-  row.appendChild(cHigh);
-  row.appendChild(cLow);
-  row.appendChild(cActive);
-  row.appendChild(c5);
-  return row;
+  body.appendChild(priceInfo);
+  body.appendChild(alertInfoDiv);
+
+  card.appendChild(header);
+  card.appendChild(body);
+
+  return card;
 }
 
 function renderMarkets(settings, tickersByMarket) {
   els.markets.innerHTML = "";
-
-  const head = document.createElement("div");
-  head.className = "market-row market-head";
-  head.innerHTML = `
-    <div class="market-cell">交易對</div>
-    <div class="market-cell">最新</div>
-    <div class="market-cell">買</div>
-    <div class="market-cell">賣</div>
-    <div class="market-cell">上限</div>
-    <div class="market-cell">下限</div>
-    <div class="market-cell" style="text-align: center;">啟用</div>
-    <div class="market-cell">操作</div>
-  `;
-  els.markets.appendChild(head);
 
   const removable = settings.markets.length > 1;
   const alerts = settings.alerts || {};
@@ -283,15 +250,12 @@ function renderMarkets(settings, tickersByMarket) {
 function renderAll() {
   if (!state.settings) return;
   const s = state.settings;
-  renderPrimaryMarketSelect(s.markets, s.primaryMarket);
   els.scheduleMode.value = s.scheduleMode;
   els.intervalMinutes.value = s.intervalMinutes;
   els.dailyTime.value = s.dailyTime;
   els.badgeMode.value = s.badgeMode;
   els.notifyOnAlarm.checked = s.notifyOnAlarm;
 
-  const primaryTicker = state.tickersByMarket?.[s.primaryMarket] || null;
-  renderPrimaryTicker(s.primaryMarket, primaryTicker);
   renderMarkets(s, state.tickersByMarket || {});
   updateScheduleUI();
 
@@ -352,7 +316,10 @@ async function saveSettings() {
   const dailyTime = els.dailyTime.value;
   const badgeMode = els.badgeMode.value;
   const notifyOnAlarm = Boolean(els.notifyOnAlarm.checked);
-  const primaryMarket = els.primaryMarket.value;
+  
+  // 透過 Radio Button 取得當前設定的主顯示商品
+  const badgeRadio = document.querySelector('input[name="primary-badge"]:checked');
+  const primaryMarket = badgeRadio ? badgeRadio.value : state.settings.primaryMarket;
   const markets = state.settings.markets;
 
   const res = await sendMessage({
@@ -382,14 +349,15 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   els.refresh.addEventListener("click", refreshNow);
-  if (els.refreshBottom) els.refreshBottom.addEventListener("click", refreshNow);
   els.save.addEventListener("click", saveSettings);
-  els.primaryMarket.addEventListener("change", () => {
-    if (!state.settings) return;
-    state.settings.primaryMarket = els.primaryMarket.value;
-    renderAll();
-  });
   els.scheduleMode.addEventListener("change", updateScheduleUI);
+
+  // 齒輪折疊設定區塊
+  if (els.toggleConfig && els.configCard) {
+    els.toggleConfig.addEventListener("click", () => {
+      els.configCard.classList.toggle("hidden");
+    });
+  }
 
   els.addMarket.addEventListener("click", async () => {
     if (!state.settings) return;
@@ -419,4 +387,3 @@ document.addEventListener("DOMContentLoaded", () => {
 
   load().catch(() => { });
 });
-

@@ -1,4 +1,4 @@
-const API_BASE = "https://max-api.maicoin.com/api/v2/tickers";
+﻿const API_BASE = "https://max-api.maicoin.com/api/v2/tickers";
 const BUILD_ID = Date.now().toString(36);
 
 const DEFAULT_SETTINGS = {
@@ -190,7 +190,13 @@ async function fetchStockTicker(symbol) {
 
 function formatBadgePrice(value) {
   if (!Number.isFinite(value)) return "";
-  return value.toFixed(2);
+  if (value < 100) {
+    return value.toFixed(1); // 例如 31.70 -> 31.7 (4字元)
+  } else if (value < 10000) {
+    return Math.round(value).toString(); // 例如 2330.00 -> 2330 (4字元)
+  } else {
+    return Math.round(value / 1000) + "K"; // 例如 67123.00 -> 67K (3字元)
+  }
 }
 
 async function updateBadge(tickersByMarket) {
