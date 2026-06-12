@@ -1,4 +1,4 @@
-﻿\ufeffconst $ = (id) => document.getElementById(id);
+﻿const $ = (id) => document.getElementById(id);
 
 const els = {
   version: $("version"),
