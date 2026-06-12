@@ -22,8 +22,21 @@
                 <button id="toggleConfig" class="btn-icon" type="button" title="設定">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 </button>
+                <button id="toggleHelp" class="btn-icon" type="button" title="使用說明">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                </button>
             </div>
         </header>
+
+        <section class="card config-card hidden" id="helpCard">
+            <div style="font-size: 12px; line-height: 1.6; color: var(--text-muted);">
+                <strong style="color: var(--primary);">💡 簡易使用說明：</strong><br>
+                1. **新增台股**：輸入純數字代號（如 <code>0050</code>、<code>2330</code>）後點選「新增」。<br>
+                2. **新增加密貨幣**：輸入交易對代碼（如 <code>usdttwd</code>、<code>btcusdt</code>）後點選「新增」。<br>
+                3. **Badge 顯示**：點選卡片左側的單選圓圈，可將該價格顯示在 Chrome 右上角圖示上。<br>
+                4. **價格警報**：在卡片輸入「高標/低標」數值並勾選「啟用示警」，達標時將收到系統推播。
+            </div>
+        </section>
 
         <section class="card config-card hidden" id="configCard">
             <div class="form-row">

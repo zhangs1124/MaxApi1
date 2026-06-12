@@ -15,7 +15,9 @@ const els = {
   status: $("status"),
   lastFetchTime: $("lastFetchTime"),
   toggleConfig: $("toggleConfig"),
-  configCard: $("configCard")
+  configCard: $("configCard"),
+  toggleHelp: $("toggleHelp"),
+  helpCard: $("helpCard")
 };
 
 let manifestVersion = "";
@@ -356,6 +358,15 @@ document.addEventListener("DOMContentLoaded", () => {
   if (els.toggleConfig && els.configCard) {
     els.toggleConfig.addEventListener("click", () => {
       els.configCard.classList.toggle("hidden");
+      if (els.helpCard) els.helpCard.classList.add("hidden");
+    });
+  }
+
+  // 問號折疊說明區塊
+  if (els.toggleHelp && els.helpCard) {
+    els.toggleHelp.addEventListener("click", () => {
+      els.helpCard.classList.toggle("hidden");
+      if (els.configCard) els.configCard.classList.add("hidden");
     });
   }
 
