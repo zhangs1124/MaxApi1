@@ -192,6 +192,8 @@ function formatBadgePrice(value) {
   if (!Number.isFinite(value)) return "";
   if (value < 100) {
     return value.toFixed(1); // 例如 31.70 -> 31.7 (4字元)
+  } else if (value < 1000) {
+    return value.toFixed(1); // 例如 101.95 -> 102.0 (5字元)
   } else if (value < 10000) {
     return Math.round(value).toString(); // 例如 2330.00 -> 2330 (4字元)
   } else {
