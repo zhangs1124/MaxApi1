@@ -203,7 +203,8 @@ function formatBadgePrice(value) {
 
 async function updateBadge(tickersByMarket) {
   const settings = await getSettings();
-  const ticker = tickersByMarket?.[settings.primaryMarket] || null;
+  const primaryMarket = settings.primaryMarket;
+  const ticker = tickersByMarket?.[primaryMarket] || null;
   const price =
     settings.badgeMode === "buy" ? ticker?.buy :
       settings.badgeMode === "sell" ? ticker?.sell :
@@ -212,6 +213,21 @@ async function updateBadge(tickersByMarket) {
   const text = formatBadgePrice(price);
   await chrome.action.setBadgeText({ text });
   await chrome.action.setBadgeBackgroundColor({ color: "#1f6feb" });
+
+  // 實作方案 B：滑鼠懸停 Tooltip
+  if (ticker) {
+    const marketKey = primaryMarket.toLowerCase();
+    const nameMap = { "0050": "元大台灣50", "0056": "元大高股息", "2330": "台積電", "usdttwd": "USDT/TWD", "btcusdt": "BTC/USDT" };
+    const name = nameMap[marketKey] || "";
+    const nameStr = name ? `【${primaryMarket.toUpperCase()} ${name}】` : `【${primaryMarket.toUpperCase()}】`;
+    
+    const timeStr = new Date(ticker.atMs).toLocaleString("zh-TW", { hour12: false });
+    const tooltipText = `${nameStr}\n最新: ${ticker.last !== null ? ticker.last.toFixed(2) : "-"}\n買入: ${ticker.buy !== null ? ticker.buy.toFixed(2) : "-"}\n賣出: ${ticker.sell !== null ? ticker.sell.toFixed(2) : "-"}\n更新於: ${timeStr}`;
+    
+    await chrome.action.setTitle({ title: tooltipText });
+  } else {
+    await chrome.action.setTitle({ title: `【${primaryMarket.toUpperCase()}】無報價數據` });
+  }
 }
 
 async function saveTickers(tickersByMarket) {
